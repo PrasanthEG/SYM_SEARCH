@@ -23,8 +23,8 @@ app.config.from_object(Config)
 
 
 
-api_blueprint = Blueprint('api', __name__)
-#@api_blueprint.route('/api')
+api_blueprint = Blueprint('api2', __name__)
+#@api_blueprint.route('/api2')
 @cross_origin()  # CORS only for this route
 
 
@@ -34,7 +34,7 @@ def log_headers():
     print(f"Headers: {request.headers}")
    
 
-@api_blueprint.route("/api/check_session", methods=["GET"])
+@api_blueprint.route("/api2/check_session", methods=["GET"])
 @jwt_required()
 def check_session():           
     try:
@@ -45,7 +45,7 @@ def check_session():
         return jsonify({"authenticated": False, "error": str(e)}), 401
 
 
-@api_blueprint.route('/api/symbols', methods=['GET'])
+@api_blueprint.route('/api2/symbols', methods=['GET'])
 def get_symbols():
     symbol = request.args.get('query', '')
     asset_type = request.args.get('assetType', '')
@@ -57,7 +57,7 @@ def get_symbols():
 
 
 
-@api_blueprint.route('/api/add_symbols', methods=['POST'])
+@api_blueprint.route('/api2/add_symbols', methods=['POST'])
 def add_symbol():
     """ Add a new symbol """
     data = request.json
