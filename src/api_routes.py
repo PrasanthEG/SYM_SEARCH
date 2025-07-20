@@ -1,12 +1,12 @@
 from flask import Flask,Blueprint, request, jsonify
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased,sessionmaker
 from sqlalchemy.sql import case
 from flask_jwt_extended import create_access_token,jwt_required,get_jwt_identity,decode_token,verify_jwt_in_request
 from src.extensions import db
-from src.models import EquitySymbol
+from src.models import EquitySymbol,Instrument
 from datetime import datetime,timedelta
 from flask_cors import CORS, cross_origin
-from sqlalchemy import func,desc
+from sqlalchemy import func,desc,create_engine, or_
 from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
 import os
@@ -21,6 +21,15 @@ CORS(app)
 app.config.from_object(Config)
 #app.register_blueprint(routes)
 
+
+
+DATABASE_URL = app.config["SQLALCHEMY_DATABASE_URI"]
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(bind=engine)
+
+# Priority Maps
+ASSET_PRIORITY = { "INDEX": 0,"EQ": 1, "FUTIDX": 2, "FUTSTK": 3, "OPTIDX": 4, "OPTSTK": 5, "COM": 6, "COMDTY": 6, "FUTCUR": 7, "OPTCUR": 8,"MF": 9, "DB": 10, ,"WARRANT": 11}
+EXCHANGE_PRIORITY = {"NSE": 0, "BSE": 1, "MCX": 2, "NCDEX": 3}
 
 
 api_blueprint = Blueprint('api2', __name__)
@@ -57,59 +66,38 @@ def get_symbols():
 
 
 
-@api_blueprint.route('/api2/add_symbols', methods=['POST'])
-def add_symbol():
-    """ Add a new symbol """
-    data = request.json
-    new_symbol = EquitySymbol(
-        token=data.get("token"),
-        symbol=data.get("symbol"),
-        series=data.get("series"),
-        instrument_type=data.get("instrument_type"),
-        issued_capital=data.get("issued_capital"),
-        permitted_to_trade=data.get("permitted_to_trade"),
-        credit_rating=data.get("credit_rating"),
-        security_eligibility_per_market=data.get("security_eligibility_per_market"),
-        board_lot_quantity=data.get("board_lot_quantity"),
-        tick_size=data.get("tick_size"),
-        name=data.get("name"),
-        issue_rate=data.get("issue_rate"),
-        issue_start_date=data.get("issue_start_date"),
-        issue_ip_date=data.get("issue_ip_date"),
-        maturity_date=data.get("maturity_date"),
-        freeze_percent=data.get("freeze_percent"),
-        listing_date=data.get("listing_date"),
-        expulsion_date=data.get("expulsion_date"),
-        re_admission_date=data.get("re_admission_date"),
-        ex_date=data.get("ex_date"),
-        record_date=data.get("record_date"),
-        delivery_date_start=data.get("delivery_date_start"),
-        no_delivery_date_end=data.get("no_delivery_date_end"),
-        participant_in_mkt_index=data.get("participant_in_mkt_index"),
-        aon=data.get("aon"),
-        mf=data.get("mf"),
-        settlement_type=data.get("settlement_type"),
-        book_closure_start_date=data.get("book_closure_start_date"),
-        book_closure_end_date=data.get("book_closure_end_date"),
-        dividend=data.get("dividend"),
-        rights=data.get("rights"),
-        bonus=data.get("bonus"),
-        interest=data.get("interest"),
-        agm=data.get("agm"),
-        egm=data.get("egm"),
-        spread=data.get("spread"),
-        mm_min_qty=data.get("mm_min_qty"),
-        ssec=data.get("ssec"),
-        remarks=data.get("remarks"),
-        local_db_update_date_time=data.get("local_db_update_date_time"),
-        delete_flag=data.get("delete_flag"),
-        face_value=data.get("face_value"),
-        isin_number=data.get("isin_number")
+def sort_priority(item):
+    return (
+        ASSET_PRIORITY.get(item.instrument_type.upper(), 99),
+        EXCHANGE_PRIORITY.get(item.exchange.upper(), 99)
     )
-    db.session.add(new_symbol)
-    db.session.commit()
-    return jsonify(new_symbol.to_dict()), 201
 
+@api_blueprint.route("/api2/search", methods=["GET"])
+def search():
+    symbol = request.args.get('symbol', '').upper()
+    asset_type = request.args.get('assetType', '').upper()
+    if not symbol:
+        return jsonify({"error": "Missing Symbol."}), 400
+
+    session = SessionLocal()
+    try:
+        results = session.query(Instrument).filter(
+            or_(
+                Instrument.trading_symbol.ilike(f"{symbol}%"),
+                Instrument.name.ilike(f"{symbol}%"),
+                Instrument.trading_symbol.ilike(f"%{symbol}%"),
+                Instrument.name.ilike(f"%{symbol}%")
+            )
+        ).all()
+
+        sorted_results = sorted(results, key=sort_priority)
+        data = [r.to_dict() for r in sorted_results[:50]]  # Assuming you have a `to_dict()` method in model
+        return jsonify(data)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        session.close()
 
 
 

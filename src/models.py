@@ -3,6 +3,55 @@ from src.extensions import db
 from datetime import datetime
 
 
+class Instrument(db.Model):
+    __tablename__ = 'contract_master'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.Text, nullable=False)
+    exchange_token = db.Column(db.Text, nullable=False, unique=False)
+    trading_symbol = db.Column(db.String(50), nullable=True)
+    series = db.Column(db.String(10), nullable=True)
+    instrument_type = db.Column(db.Text, nullable=True)
+    isin = db.Column(db.Text, nullable=True)
+    exchange = db.Column(db.String(20), nullable=False)
+    segment = db.Column(db.Text, nullable=True)
+    lot_size = db.Column(db.BigInteger, nullable=True)
+    tick_size = db.Column(db.Text, nullable=True)
+    qty_multiplier = db.Column(db.Float, nullable=True)
+    strike_price = db.Column(db.Numeric, nullable=True)
+    trading_symbol = db.Column(db.Text, nullable=True)
+    underlying_symbol = db.Column(db.Text, nullable=True)
+    underlying_isin = db.Column(db.String(30), nullable=True)
+    underlying_token = db.Column(db.String(30), nullable=True)
+    face_value = db.Column(db.Text, nullable=True)
+    tradable = db.Column(db.String(5), default='TRUE', nullable=False)
+    expiry = db.Column(db.TIMESTAMP(timezone=False), nullable=True)
+    created_at = db.Column(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp())
+    minimum_lot = db.Column(db.BigInteger, nullable=True)
+    freeze_quantity = db.Column(db.BigInteger, nullable=True)
+    sector_id = db.Column(db.Integer, db.ForeignKey('isin_sector_map.id'), nullable
+
+
+    
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "exchange_token": self.exchange_token,
+            "trading_symbol": self.trading_symbol,
+            "name": self.name,
+            "isin": self.isin,
+            "exchange": self.exchange,
+            "instrument_type": self.instrument_type,
+            "series":self.series,
+            "lot_size": self.lot_size,
+            "segment": self.segment,
+            "strike_price": self.strike_price,
+            "underlying_token": self.underlying_token,
+            "expiry": self.expiry.strftime('%Y-%m-%d') if self.expiry else None,
+            "sector_id": self.sector_id
+        }
+
 class EquitySymbol(db.Model):
     __tablename__ = 'equity_symbols'
 
