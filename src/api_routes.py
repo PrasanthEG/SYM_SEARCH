@@ -6,7 +6,7 @@ from src.extensions import db
 from src.models import EquitySymbol,Instrument
 from datetime import datetime,timedelta
 from flask_cors import CORS, cross_origin
-from sqlalchemy import func,desc,create_engine, or_
+from sqlalchemy import func,desc,create_engine, or_,and_, not_
 from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
 import os
@@ -23,14 +23,10 @@ app.config.from_object(Config)
 
 
 
-DATABASE_URL = app.config["SQLALCHEMY_DATABASE_URI"]
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(bind=engine)
 
 # Priority Maps
-ASSET_PRIORITY = { "INDEX": 0,"EQ": 1, "FUTIDX": 2, "FUTSTK": 3, "OPTIDX": 4, "OPTSTK": 5, "COM": 6, "COMDTY": 6, "FUTCUR": 7, "OPTCUR": 8,"MF": 9, "DB": 10, ,"WARRANT": 11}
+ASSET_PRIORITY = { "INDEX": 0,"EQ": 1, "FUTIDX": 2, "FUTSTK": 3, "OPTIDX": 4, "OPTSTK": 5, "COM": 6, "COMDTY": 6, "FUTCUR": 7, "OPTCUR": 8,"MF": 9, "DB": 10, "WARRANT": 11}
 EXCHANGE_PRIORITY = {"NSE": 0, "BSE": 1, "MCX": 2, "NCDEX": 3}
-
 
 api_blueprint = Blueprint('api2', __name__)
 #@api_blueprint.route('/api2')
@@ -43,7 +39,7 @@ def log_headers():
     print(f"Headers: {request.headers}")
    
 
-@api_blueprint.route("/api2/check_session", methods=["GET"])
+@api_blueprint.route("/api-sym/check_session", methods=["GET"])
 @jwt_required()
 def check_session():           
     try:
@@ -54,7 +50,7 @@ def check_session():
         return jsonify({"authenticated": False, "error": str(e)}), 401
 
 
-@api_blueprint.route('/api2/symbols', methods=['GET'])
+@api_blueprint.route('/api-sym/symbols', methods=['GET'])
 def get_symbols():
     symbol = request.args.get('query', '')
     asset_type = request.args.get('assetType', '')
@@ -66,38 +62,68 @@ def get_symbols():
 
 
 
+
+
 def sort_priority(item):
     return (
-        ASSET_PRIORITY.get(item.instrument_type.upper(), 99),
-        EXCHANGE_PRIORITY.get(item.exchange.upper(), 99)
+        EXCHANGE_PRIORITY.get(item.exchange, 99),
+        ASSET_PRIORITY.get(item.instrument_type, 99)
     )
 
-@api_blueprint.route("/api2/search", methods=["GET"])
+
+@api_blueprint.route("/api-sym/search", methods=["GET"])
 def search():
-    symbol = request.args.get('symbol', '').upper()
+    print("inside lookup")
+    symbol = request.args.get('symbol', '')
     asset_type = request.args.get('assetType', '').upper()
     if not symbol:
         return jsonify({"error": "Missing Symbol."}), 400
 
-    session = SessionLocal()
+    asset_type_map = {
+        "EQ": ["EQ", "INDEX"],
+        "F&O": ["FUTIDX", "FUTSTK", "OPTIDX", "OPTSTK"],
+        "COMMODITY": ["COM","COMDTY","FUTCOM", "OPTCOM"],
+    }
+
+    instrument_types = asset_type_map.get(asset_type, [])
+
     try:
-        results = session.query(Instrument).filter(
+
+        instrument_types = []  # No filter if invalid assetType
+
+        filters = [
             or_(
                 Instrument.trading_symbol.ilike(f"{symbol}%"),
                 Instrument.name.ilike(f"{symbol}%"),
                 Instrument.trading_symbol.ilike(f"%{symbol}%"),
                 Instrument.name.ilike(f"%{symbol}%")
             )
-        ).all()
+        ]
 
+        if instrument_types:
+            filters.append(Instrument.instrument_type.in_(instrument_types))
+
+        filters.append(
+           not_(and_(Instrument.instrument_type == 'EQ', Instrument.series != 'EQ'))
+        )
+        
+        results = (
+            db.session.query(Instrument)
+            .filter(*filters)
+            .limit(200)  # Fetch up to 200, sort and return top 50
+            .all()
+        )
+
+
+        
         sorted_results = sorted(results, key=sort_priority)
-        data = [r.to_dict() for r in sorted_results[:50]]  # Assuming you have a `to_dict()` method in model
-        return jsonify(data)
+        data = [r.to_dict() for r in sorted_results[:50]]  # to_dict must exist in model
+
+        return jsonify(data), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        session.close()
+
 
 
 

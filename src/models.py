@@ -29,7 +29,7 @@ class Instrument(db.Model):
     created_at = db.Column(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp())
     minimum_lot = db.Column(db.BigInteger, nullable=True)
     freeze_quantity = db.Column(db.BigInteger, nullable=True)
-    sector_id = db.Column(db.Integer, db.ForeignKey('isin_sector_map.id'), nullable
+    sector_id = db.Column(db.Integer, db.ForeignKey('isin_sector_map.id'), nullable=True)
 
 
     
