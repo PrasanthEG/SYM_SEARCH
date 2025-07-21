@@ -73,7 +73,6 @@ def sort_priority(item):
 
 @api_blueprint.route("/api-sym/search", methods=["GET"])
 def search():
-    print("inside lookup")
     symbol = request.args.get('symbol', '')
     asset_type = request.args.get('assetType', '').upper()
     if not symbol:
